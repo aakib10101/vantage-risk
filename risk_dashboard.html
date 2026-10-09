@@ -1,0 +1,1974 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Vantage Risk — Portfolio Analytics Terminal</title>
+<meta name="description" content="Vantage Risk — professional-grade portfolio risk analytics. VaR, CVaR, Sharpe, Monte Carlo simulation, efficient frontier, drawdown analysis, and more." />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<style>
+  :root{
+    --bg: #0a0d13;
+    --panel: #10141d;
+    --panel-2: #141924;
+    --line: #232a38;
+    --line-soft: #1a202c;
+    --text: #e6e9ef;
+    --text-dim: #8b93a3;
+    --text-faint: #5a6274;
+    --teal: #3ecfd9;
+    --teal-dim: #1e5a5f;
+    --amber: #e8a13d;
+    --green: #5fbf8f;
+    --red: #e0616a;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'Inter', sans-serif;
+    --disp: 'Space Grotesk', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);}
+  ::selection{background:var(--teal);color:#04202a;}
+  ::-webkit-scrollbar{width:10px;height:10px;}
+  ::-webkit-scrollbar-track{background:var(--bg);}
+  ::-webkit-scrollbar-thumb{background:#232a38;border-radius:6px;}
+  a{color:var(--teal);}
+
+  /* ---------- Ticker ---------- */
+  .ticker-wrap{
+    background:#070911; border-bottom:1px solid var(--line);
+    overflow:hidden; white-space:nowrap; position:relative; height:34px;
+  }
+  .ticker-wrap::before, .ticker-wrap::after{
+    content:""; position:absolute; top:0; bottom:0; width:40px; z-index:2; pointer-events:none;
+  }
+  .ticker-wrap::before{left:0; background:linear-gradient(90deg,#070911,transparent);}
+  .ticker-wrap::after{right:0; background:linear-gradient(270deg,#070911,transparent);}
+  .ticker-track{
+    display:inline-flex; align-items:center; gap:36px; padding-left:100%;
+    font-family:var(--mono); font-size:12.5px; white-space:nowrap;
+    animation: scroll-left 38s linear infinite;
+  }
+  .ticker-wrap:hover .ticker-track{animation-play-state:paused;}
+  @keyframes scroll-left{ from{transform:translateX(0);} to{transform:translateX(-50%);} }
+  .tick-item{color:var(--text-dim); letter-spacing:.02em;}
+  .tick-item b{color:var(--text); font-weight:500;}
+  .tick-up{color:var(--green);}
+  .tick-down{color:var(--red);}
+
+  /* ---------- Header ---------- */
+  header.top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:16px 24px; border-bottom:1px solid var(--line);
+  }
+  .brand{display:flex; align-items:baseline; gap:10px;}
+  .brand .mark{
+    font-family:var(--disp); font-weight:700; font-size:19px; letter-spacing:.01em; color:var(--text);
+  }
+  .brand .mark span{color:var(--teal);}
+  .brand .tag{font-family:var(--mono); font-size:11px; color:var(--text-faint); letter-spacing:.08em; text-transform:uppercase;}
+  .asof{font-family:var(--mono); font-size:11.5px; color:var(--text-dim);}
+
+  /* ---------- Auth bar ---------- */
+  .auth-bar{
+    display:flex; align-items:center; gap:10px;
+  }
+  .auth-bar .user-email{
+    font-family:var(--mono); font-size:11px; color:var(--teal);
+  }
+  .api-status{
+    display:inline-flex; align-items:center; gap:5px;
+    font-family:var(--mono); font-size:10px; letter-spacing:.04em;
+    padding:3px 8px; border-radius:20px; border:1px solid var(--line);
+  }
+  .api-status .dot{
+    width:6px; height:6px; border-radius:50%;
+  }
+  .api-status.connected .dot{background:var(--green);}
+  .api-status.disconnected .dot{background:var(--red);}
+  .api-status.connected{color:var(--green);}
+  .api-status.disconnected{color:var(--text-faint);}
+
+  /* ---------- Auth Modal ---------- */
+  .modal-overlay{
+    display:none; position:fixed; top:0;left:0;right:0;bottom:0;
+    background:rgba(0,0,0,.7); z-index:1000;
+    justify-content:center; align-items:center;
+  }
+  .modal-overlay.active{display:flex;}
+  .modal{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    padding:32px; width:380px; max-width:90vw;
+  }
+  .modal h2{
+    font-family:var(--disp); font-size:18px; margin:0 0 20px; color:var(--text);
+  }
+  .modal .field{margin-bottom:14px;}
+  .modal .field label{display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:5px;}
+  .modal .field input{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:13px; padding:9px 10px; border-radius:6px; outline:none;
+  }
+  .modal .field input:focus{border-color:var(--teal);}
+  .modal .btn-row{display:flex; gap:8px; margin-top:18px;}
+  .modal .error-msg{font-size:11px; color:var(--red); margin-top:8px; min-height:16px;}
+  .modal .toggle-link{
+    font-size:11px; color:var(--teal); cursor:pointer; margin-top:10px; display:inline-block;
+  }
+
+  /* ---------- Portfolio Manager ---------- */
+  .portfolio-manager{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:12px; margin-bottom:12px;
+  }
+  .portfolio-manager .pm-title{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase;
+    letter-spacing:.1em; color:var(--text-faint); margin-bottom:8px;
+  }
+  .portfolio-select{
+    width:100%; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:12px; padding:7px 8px; border-radius:5px;
+    margin-bottom:8px;
+  }
+  .holding-list{
+    max-height:140px; overflow-y:auto; margin-top:6px;
+  }
+  .holding-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:4px 0; font-size:11.5px; border-bottom:1px solid var(--line-soft);
+  }
+  .holding-item .symbol{font-family:var(--mono); color:var(--teal); font-weight:500;}
+  .holding-item .weight-val{font-family:var(--mono); color:var(--text-dim);}
+  .holding-item .del-btn{
+    cursor:pointer; color:var(--text-faint); font-size:10px; padding:2px 5px;
+    border:1px solid var(--line); border-radius:3px; background:none;
+  }
+  .holding-item .del-btn:hover{color:var(--red); border-color:var(--red);}
+  .add-holding-row{display:flex; gap:4px; margin-top:6px;}
+  .add-holding-row input{
+    flex:1; background:var(--bg); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:11px; padding:5px 6px; border-radius:4px;
+  }
+
+  /* ---------- Layout ---------- */
+  .layout{display:flex; align-items:flex-start;}
+  .sidebar{
+    width:288px; flex:0 0 288px; border-right:1px solid var(--line);
+    padding:20px 18px 40px; min-height:calc(100vh - 90px);
+    position:sticky; top:0;
+  }
+  .main{flex:1; padding:20px 24px 60px; min-width:0;}
+
+  .side-section{margin-bottom:26px;}
+  .side-title{
+    font-family:var(--mono); font-size:10.5px; text-transform:uppercase; letter-spacing:.12em;
+    color:var(--text-faint); margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;
+  }
+  .btn{
+    font-family:var(--sans); font-size:12px; font-weight:500; color:var(--text-dim);
+    background:var(--panel-2); border:1px solid var(--line); border-radius:5px;
+    padding:6px 10px; cursor:pointer; transition:.15s;
+  }
+  .btn:hover{border-color:var(--teal); color:var(--text);}
+  .btn.primary{color:#04202a; background:var(--teal); border-color:var(--teal); font-weight:600;}
+  .btn.primary:hover{background:#5ddbe4;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-row{display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+
+  .asset-row{margin-bottom:12px;}
+  .asset-row .lbl{
+    display:flex; justify-content:space-between; font-size:12px; margin-bottom:5px;
+  }
+  .asset-row .lbl .name{color:var(--text); font-weight:500;}
+  .asset-row .lbl .name .dot{display:inline-block; width:7px; height:7px; border-radius:2px; margin-right:6px;}
+  .asset-row .lbl .val{font-family:var(--mono); color:var(--teal);}
+  input[type=range]{
+    -webkit-appearance:none; width:100%; height:4px; border-radius:2px; background:var(--line);
+    outline:none;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none; width:13px; height:13px; border-radius:50%;
+    background:var(--teal); cursor:pointer; border:2px solid #04202a;
+  }
+  .weight-sum{
+    font-family:var(--mono); font-size:11px; color:var(--text-faint); margin-top:6px;
+    display:flex; justify-content:space-between;
+  }
+  .weight-sum b{color:var(--text-dim);}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:11.5px; color:var(--text-dim); margin-bottom:5px;}
+  .field select, .field input[type=number]{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:12.5px; padding:7px 8px; border-radius:5px;
+  }
+  .field-row{display:flex; gap:8px;}
+  .field-row .field{flex:1;}
+
+  .upload-box{
+    border:1px dashed var(--line); border-radius:6px; padding:12px; text-align:center;
+    font-size:11.5px; color:var(--text-faint); cursor:pointer; transition:.15s;
+  }
+  .upload-box:hover{border-color:var(--teal); color:var(--text-dim);}
+  .upload-box input{display:none;}
+  .data-note{font-size:10.5px; color:var(--text-faint); line-height:1.5; margin-top:8px;}
+
+  /* ---------- Grid / Panels ---------- */
+  .kpi-row{
+    display:grid; grid-template-columns:repeat(8, 1fr); gap:10px; margin-bottom:18px;
+  }
+  .kpi{
+    background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:12px 13px;
+  }
+  .kpi .k-label{font-size:10px; text-transform:uppercase; letter-spacing:.08em; color:var(--text-faint); margin-bottom:8px;}
+  .kpi .k-val{font-family:var(--mono); font-size:19px; font-weight:600; color:var(--text);}
+  .kpi .k-sub{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-top:4px;}
+  .kpi.risk .k-val{color:var(--amber);}
+  .kpi.neg .k-val{color:var(--red);}
+
+  .grid{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .span-2{grid-column:1 / -1;}
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:9px; padding:16px 18px 10px;
+  }
+  .panel-head{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:2px;}
+  .panel-title{font-family:var(--disp); font-size:14.5px; font-weight:600; color:var(--text);}
+  .panel-sub{font-size:11px; color:var(--text-faint); margin-top:3px; max-width:520px; line-height:1.5;}
+  .panel-badge{
+    font-family:var(--mono); font-size:10px; color:var(--teal); border:1px solid var(--teal-dim);
+    background:rgba(62,207,217,.08); padding:3px 8px; border-radius:20px; white-space:nowrap;
+  }
+  .chart{width:100%; height:280px; margin-top:6px;}
+  .chart.tall{height:340px;}
+  .chart.short{height:190px;}
+  .two-col-charts{display:grid; grid-template-columns:1.4fr 1fr; gap:14px;}
+
+  .legend-note{font-family:var(--mono); font-size:10.5px; color:var(--text-faint); margin-top:6px; padding-top:8px; border-top:1px solid var(--line-soft);}
+
+  footer.app-footer{
+    text-align:center; padding:26px; font-size:11px; color:var(--text-faint); font-family:var(--mono);
+  }
+
+  /* ---------- Loading overlay ---------- */
+  .loading-overlay{
+    display:none; position:fixed; top:0;left:0;right:0;bottom:0;
+    background:rgba(10,13,19,.85); z-index:900;
+    justify-content:center; align-items:center; flex-direction:column;
+  }
+  .loading-overlay.active{display:flex;}
+  .loading-spinner{
+    width:40px; height:40px; border:3px solid var(--line);
+    border-top-color:var(--teal); border-radius:50%;
+    animation:spin .8s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+  .loading-text{
+    font-family:var(--mono); font-size:12px; color:var(--text-dim); margin-top:14px;
+  }
+
+  @media (max-width: 980px){
+    .layout{flex-direction:column;}
+    .sidebar{width:100%; flex:none; position:static; border-right:none; border-bottom:1px solid var(--line);}
+    .grid{grid-template-columns:1fr;}
+    .kpi-row{grid-template-columns:repeat(2,1fr);}
+    .two-col-charts{grid-template-columns:1fr;}
+  }
+</style>
+</head>
+<body>
+
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-spinner"></div>
+  <div class="loading-text" id="loadingText">Fetching market data...</div>
+</div>
+
+<!-- Auth Modal -->
+<div class="modal-overlay" id="authModal">
+  <div class="modal">
+    <h2 id="authModalTitle">Sign In</h2>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="authEmail" placeholder="you@example.com" />
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="authPassword" placeholder="••••••••" />
+    </div>
+    <div class="error-msg" id="authError"></div>
+    <div class="btn-row">
+      <button class="btn primary" id="authSubmitBtn">Sign In</button>
+      <button class="btn" id="authCloseBtn">Skip (offline mode)</button>
+    </div>
+    <span class="toggle-link" id="authToggle">Don't have an account? Register</span>
+  </div>
+</div>
+
+<div class="ticker-wrap">
+  <div class="ticker-track" id="tickerTrack"></div>
+</div>
+
+<header class="top">
+  <div class="brand">
+    <div class="mark">Vantage<span>Risk</span></div>
+    <div class="tag">Portfolio Risk Analytics Terminal</div>
+  </div>
+  <div class="auth-bar">
+    <div class="api-status disconnected" id="apiStatus">
+      <div class="dot"></div>
+      <span id="apiStatusText">OFFLINE</span>
+    </div>
+    <span class="user-email" id="userEmail"></span>
+    <button class="btn" id="authBtn" style="font-size:11px; padding:4px 10px;">Sign In</button>
+    <div class="asof" id="asOf">—</div>
+  </div>
+</header>
+
+<div class="layout">
+  <aside class="sidebar">
+
+    <!-- Portfolio Manager (API mode) -->
+    <div class="side-section" id="portfolioManagerSection" style="display:none;">
+      <div class="portfolio-manager">
+        <div class="pm-title">Portfolio Manager</div>
+        <select class="portfolio-select" id="portfolioSelect">
+          <option value="">— Select portfolio —</option>
+        </select>
+        <div class="btn-row">
+          <button class="btn" id="btnCreatePortfolio" style="font-size:10.5px;">+ New Portfolio</button>
+          <button class="btn" id="btnDeletePortfolio" style="font-size:10.5px; color:var(--red);" disabled>Delete</button>
+        </div>
+        <div id="holdingsContainer" style="display:none; margin-top:10px;">
+          <div style="font-family:var(--mono); font-size:10px; color:var(--text-faint); text-transform:uppercase; letter-spacing:.1em; margin-bottom:4px;">Holdings</div>
+          <div class="holding-list" id="holdingList"></div>
+          <div class="add-holding-row">
+            <input type="text" id="addSymbol" placeholder="AAPL" style="flex:1;" />
+            <input type="number" id="addWeight" placeholder="0.25" step="0.01" min="0" max="1" style="flex:0.7;" />
+            <button class="btn" id="btnAddHolding" style="font-size:10px; padding:4px 8px;">Add</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-title">Data Source</div>
+      <label class="upload-box" for="csvUpload">
+        Upload price history (.csv)<br/>Date, Asset1, Asset2, …
+        <input type="file" id="csvUpload" accept=".csv" />
+      </label>
+      <div class="btn-row">
+        <button class="btn" id="btnRegenerate">↻ Resample synthetic data</button>
+        <button class="btn" id="btnReset">Reset to sample</button>
+        <button class="btn" id="btnFetchAPI" style="display:none;">Fetch from API</button>
+      </div>
+      <div class="data-note" id="dataNote">Using simulated 3-year daily price history for a 5-asset multi-asset universe (correlated GBM, fixed seed). Upload your own CSV of adjusted close prices for live analysis.</div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-title">Portfolio Weights <span id="weightSumBadge" style="color:var(--text-faint)">100%</span></div>
+      <div id="assetSliders"></div>
+      <div class="weight-sum"><span>Normalized sum</span><b id="normSum">100.0%</b></div>
+      <div class="btn-row">
+        <button class="btn" id="btnEqual">Equal weight</button>
+        <button class="btn" id="btnMinVar">Min variance</button>
+        <button class="btn" id="btnMaxSharpe">Max Sharpe</button>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-title">Risk Parameters</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Confidence level</label>
+          <select id="confLevel">
+            <option value="0.95" selected>95%</option>
+            <option value="0.99">99%</option>
+            <option value="0.975">97.5%</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>VaR horizon (days)</label>
+          <select id="varHorizon">
+            <option value="1" selected>1</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="21">21</option>
+          </select>
+        </div>
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Risk-free rate</label>
+          <input type="number" id="rfRate" value="3.0" step="0.1" />
+        </div>
+        <div class="field">
+          <label>Portfolio value ($k)</label>
+          <input type="number" id="pfValue" value="1000" step="50" />
+        </div>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-title">Monte Carlo</div>
+      <div class="field-row">
+        <div class="field">
+          <label>Simulations</label>
+          <select id="mcSims">
+            <option value="1000">1,000</option>
+            <option value="2500" selected>2,500</option>
+            <option value="5000">5,000</option>
+            <option value="10000">10,000</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Path horizon (days)</label>
+          <select id="mcHorizon">
+            <option value="21">21</option>
+            <option value="63" selected>63</option>
+            <option value="126">126</option>
+            <option value="252">252</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-section">
+      <div class="side-title">Rolling Window</div>
+      <div class="field">
+        <label>Window length (trading days)</label>
+        <input type="number" id="rollWindow" value="21" step="1" min="5" max="120" />
+      </div>
+    </div>
+
+  </aside>
+
+  <main class="main">
+
+    <section class="kpi-row" id="kpiRow"></section>
+
+    <section class="grid">
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Allocation</div>
+            <div class="panel-sub">Normalized portfolio weights by asset.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartAllocation"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Correlation Matrix</div>
+            <div class="panel-sub">Pairwise return correlation, full sample history.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartCorr"></div>
+      </div>
+
+      <div class="panel span-2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Efficient Frontier</div>
+            <div class="panel-sub">Cloud of 12,000 random long-only portfolios, the analytical Markowitz frontier (unconstrained), the tangency portfolio and Capital Market Line.</div>
+          </div>
+          <div class="panel-badge" id="frontierBadge">Sharpe optimal</div>
+        </div>
+        <div class="chart tall" id="chartFrontier"></div>
+      </div>
+
+      <div class="panel span-2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Monte Carlo Simulation — Portfolio Value Paths</div>
+            <div class="panel-sub">Correlated multi-asset GBM paths via Cholesky decomposition. Shaded bands show the 5–95% and 25–75% percentile ranges across simulations.</div>
+          </div>
+          <div class="panel-badge" id="mcBadge">— sims</div>
+        </div>
+        <div class="chart tall" id="chartMC"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Value at Risk — Method Comparison</div>
+            <div class="panel-sub">Historical, Parametric (variance–covariance) and Monte Carlo VaR at the selected confidence &amp; horizon.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartVaR"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Simulated Return Distribution</div>
+            <div class="panel-sub">Monte Carlo terminal return distribution with VaR / CVaR cutoffs.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartMCHist"></div>
+      </div>
+
+      <div class="panel span-2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Rolling Volatility</div>
+            <div class="panel-sub">Annualized rolling standard deviation of portfolio returns.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartRollVol"></div>
+      </div>
+
+      <div class="panel span-2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Rolling Sharpe Ratio</div>
+            <div class="panel-sub">Annualized rolling excess return over rolling volatility.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartRollSharpe"></div>
+      </div>
+
+      <div class="panel span-2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Volatility Clustering</div>
+            <div class="panel-sub">Squared portfolio returns (variance proxy) and the autocorrelation function of squared returns — persistent bars above the confidence band indicate clustering (ARCH effects).</div>
+          </div>
+        </div>
+        <div class="two-col-charts">
+          <div class="chart short" id="chartVolClusterSeries"></div>
+          <div class="chart short" id="chartACF"></div>
+        </div>
+      </div>
+
+      <div class="panel span-2">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Drawdown Analysis</div>
+            <div class="panel-sub">Cumulative portfolio growth (top) and underwater drawdown from prior peak (bottom).</div>
+          </div>
+          <div class="panel-badge" id="ddBadge">—</div>
+        </div>
+        <div class="chart short" id="chartCumulative"></div>
+        <div class="chart short" id="chartDrawdown"></div>
+      </div>
+
+      <!-- Risk Contribution panel (API-only) -->
+      <div class="panel span-2" id="riskContribPanel" style="display:none;">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">Risk Contribution (Euler Decomposition)</div>
+            <div class="panel-sub">Marginal and component contribution to portfolio risk by asset.</div>
+          </div>
+        </div>
+        <div class="chart" id="chartRiskContrib"></div>
+      </div>
+
+    </section>
+  </main>
+</div>
+
+<footer class="app-footer">VANTAGE RISK — for illustration &amp; education. Synthetic and user-supplied data only. Not investment advice.</footer>
+
+<script>
+(function(){
+"use strict";
+
+/* =========================================================================
+   0. API CLIENT — Connection to FastAPI backend
+   ========================================================================= */
+
+const API_BASE = window.location.origin; // Same origin when served by FastAPI
+let AUTH_TOKEN = localStorage.getItem("vr_token") || null;
+let CURRENT_USER = null;
+let API_CONNECTED = false;
+let CURRENT_PORTFOLIO_ID = null;
+
+const api = {
+  async request(method, path, body = null) {
+    const headers = { "Content-Type": "application/json" };
+    if (AUTH_TOKEN) headers["Authorization"] = `Bearer ${AUTH_TOKEN}`;
+    const opts = { method, headers };
+    if (body) opts.body = JSON.stringify(body);
+    const res = await fetch(`${API_BASE}${path}`, opts);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(err.detail || res.statusText);
+    }
+    if (res.status === 204) return null;
+    return res.json();
+  },
+  get(path) { return this.request("GET", path); },
+  post(path, body) { return this.request("POST", path, body); },
+  put(path, body) { return this.request("PUT", path, body); },
+  del(path) { return this.request("DELETE", path); },
+};
+
+async function checkAPIConnection() {
+  try {
+    const res = await fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      API_CONNECTED = true;
+      updateAPIStatus(true);
+      return true;
+    }
+  } catch {}
+  API_CONNECTED = false;
+  updateAPIStatus(false);
+  return false;
+}
+
+function updateAPIStatus(connected) {
+  const el = document.getElementById("apiStatus");
+  const txt = document.getElementById("apiStatusText");
+  if (connected) {
+    el.className = "api-status connected";
+    txt.textContent = "API LIVE";
+  } else {
+    el.className = "api-status disconnected";
+    txt.textContent = "OFFLINE";
+  }
+}
+
+/* =========================================================================
+   0b. AUTH UI
+   ========================================================================= */
+
+let authMode = "login"; // or "register"
+
+function showAuthModal() {
+  document.getElementById("authModal").classList.add("active");
+  document.getElementById("authError").textContent = "";
+  updateAuthModalUI();
+}
+function hideAuthModal() {
+  document.getElementById("authModal").classList.remove("active");
+}
+function updateAuthModalUI() {
+  const title = document.getElementById("authModalTitle");
+  const btn = document.getElementById("authSubmitBtn");
+  const toggle = document.getElementById("authToggle");
+  if (authMode === "login") {
+    title.textContent = "Sign In";
+    btn.textContent = "Sign In";
+    toggle.textContent = "Don't have an account? Register";
+  } else {
+    title.textContent = "Register";
+    btn.textContent = "Create Account";
+    toggle.textContent = "Already have an account? Sign in";
+  }
+}
+
+document.getElementById("authToggle").addEventListener("click", () => {
+  authMode = authMode === "login" ? "register" : "login";
+  updateAuthModalUI();
+});
+
+document.getElementById("authSubmitBtn").addEventListener("click", async () => {
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const errEl = document.getElementById("authError");
+  if (!email || !password) { errEl.textContent = "Email and password required."; return; }
+
+  try {
+    if (authMode === "register") {
+      await api.post("/auth/register", { email, password });
+    }
+    // Login
+    const formData = new URLSearchParams();
+    formData.append("username", email);
+    formData.append("password", password);
+    const res = await fetch(`${API_BASE}/auth/login`, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: formData,
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || "Login failed");
+    }
+    const data = await res.json();
+    AUTH_TOKEN = data.access_token;
+    localStorage.setItem("vr_token", AUTH_TOKEN);
+    await loadCurrentUser();
+    hideAuthModal();
+    onAuthSuccess();
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+});
+
+document.getElementById("authCloseBtn").addEventListener("click", hideAuthModal);
+
+document.getElementById("authBtn").addEventListener("click", () => {
+  if (AUTH_TOKEN) {
+    // Logout
+    AUTH_TOKEN = null;
+    CURRENT_USER = null;
+    CURRENT_PORTFOLIO_ID = null;
+    localStorage.removeItem("vr_token");
+    document.getElementById("authBtn").textContent = "Sign In";
+    document.getElementById("userEmail").textContent = "";
+    document.getElementById("portfolioManagerSection").style.display = "none";
+    document.getElementById("riskContribPanel").style.display = "none";
+    document.getElementById("btnFetchAPI").style.display = "none";
+  } else {
+    showAuthModal();
+  }
+});
+
+async function loadCurrentUser() {
+  try {
+    CURRENT_USER = await api.get("/auth/me");
+    document.getElementById("userEmail").textContent = CURRENT_USER.email;
+    document.getElementById("authBtn").textContent = "Sign Out";
+  } catch {
+    AUTH_TOKEN = null;
+    localStorage.removeItem("vr_token");
+  }
+}
+
+async function onAuthSuccess() {
+  document.getElementById("portfolioManagerSection").style.display = "block";
+  document.getElementById("btnFetchAPI").style.display = "inline-block";
+  await loadPortfolios();
+}
+
+
+/* =========================================================================
+   0c. PORTFOLIO MANAGER UI
+   ========================================================================= */
+
+async function loadPortfolios() {
+  try {
+    const portfolios = await api.get("/portfolios");
+    const sel = document.getElementById("portfolioSelect");
+    sel.innerHTML = '<option value="">— Select portfolio —</option>';
+    portfolios.forEach(p => {
+      const opt = document.createElement("option");
+      opt.value = p.id;
+      opt.textContent = `${p.name} (${p.holdings.length} holdings)`;
+      sel.appendChild(opt);
+    });
+    if (CURRENT_PORTFOLIO_ID) sel.value = CURRENT_PORTFOLIO_ID;
+  } catch (e) {
+    console.warn("Failed to load portfolios:", e);
+  }
+}
+
+document.getElementById("portfolioSelect").addEventListener("change", async (e) => {
+  CURRENT_PORTFOLIO_ID = e.target.value || null;
+  document.getElementById("btnDeletePortfolio").disabled = !CURRENT_PORTFOLIO_ID;
+  if (CURRENT_PORTFOLIO_ID) {
+    await loadPortfolioHoldings(CURRENT_PORTFOLIO_ID);
+    document.getElementById("holdingsContainer").style.display = "block";
+    // Fetch risk data from API
+    await fetchAndRenderFromAPI();
+  } else {
+    document.getElementById("holdingsContainer").style.display = "none";
+  }
+});
+
+document.getElementById("btnCreatePortfolio").addEventListener("click", async () => {
+  const name = prompt("Portfolio name:");
+  if (!name) return;
+  try {
+    const pf = await api.post("/portfolios", {
+      name,
+      base_currency: "USD",
+      benchmark_symbol: "^GSPC",
+      weighting_mode: "weight",
+    });
+    CURRENT_PORTFOLIO_ID = pf.id;
+    await loadPortfolios();
+    document.getElementById("portfolioSelect").value = pf.id;
+    document.getElementById("holdingsContainer").style.display = "block";
+    document.getElementById("btnDeletePortfolio").disabled = false;
+    await loadPortfolioHoldings(pf.id);
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+});
+
+document.getElementById("btnDeletePortfolio").addEventListener("click", async () => {
+  if (!CURRENT_PORTFOLIO_ID) return;
+  if (!confirm("Delete this portfolio?")) return;
+  try {
+    await api.del(`/portfolios/${CURRENT_PORTFOLIO_ID}`);
+    CURRENT_PORTFOLIO_ID = null;
+    document.getElementById("holdingsContainer").style.display = "none";
+    document.getElementById("btnDeletePortfolio").disabled = true;
+    await loadPortfolios();
+  } catch (e) {
+    alert("Error: " + e.message);
+  }
+});
+
+async function loadPortfolioHoldings(portfolioId) {
+  try {
+    const pf = await api.get(`/portfolios/${portfolioId}`);
+    const list = document.getElementById("holdingList");
+    list.innerHTML = "";
+    pf.holdings.forEach(h => {
+      const item = document.createElement("div");
+      item.className = "holding-item";
+      item.innerHTML = `
+        <span class="symbol">${h.symbol}</span>
+        <span class="weight-val">${h.weight != null ? (h.weight * 100).toFixed(1) + '%' : h.quantity}</span>
+        <button class="del-btn" data-id="${h.id}">×</button>
+      `;
+      item.querySelector(".del-btn").addEventListener("click", async () => {
+        try {
+          await api.del(`/portfolios/${portfolioId}/holdings/${h.id}`);
+          await loadPortfolioHoldings(portfolioId);
+          await fetchAndRenderFromAPI();
+        } catch (e) { alert("Error: " + e.message); }
+      });
+      list.appendChild(item);
+    });
+  } catch (e) {
+    console.warn("Failed to load holdings:", e);
+  }
+}
+
+document.getElementById("btnAddHolding").addEventListener("click", async () => {
+  if (!CURRENT_PORTFOLIO_ID) return;
+  const symbol = document.getElementById("addSymbol").value.trim().toUpperCase();
+  const weight = parseFloat(document.getElementById("addWeight").value);
+  if (!symbol) { alert("Enter a symbol"); return; }
+  if (isNaN(weight) || weight <= 0 || weight > 1) { alert("Weight must be between 0 and 1"); return; }
+
+  try {
+    showLoading("Adding holding...");
+    await api.post(`/portfolios/${CURRENT_PORTFOLIO_ID}/holdings`, { symbol, weight });
+    document.getElementById("addSymbol").value = "";
+    document.getElementById("addWeight").value = "";
+    await loadPortfolioHoldings(CURRENT_PORTFOLIO_ID);
+    hideLoading();
+    await fetchAndRenderFromAPI();
+  } catch (e) {
+    hideLoading();
+    alert("Error: " + e.message);
+  }
+});
+
+/* =========================================================================
+   0d. API DATA FETCHING
+   ========================================================================= */
+
+async function fetchAndRenderFromAPI() {
+  if (!CURRENT_PORTFOLIO_ID || !AUTH_TOKEN) return;
+
+  showLoading("Fetching risk analytics from API...");
+  try {
+    // Fetch all analytics in parallel
+    const [perf, risk, riskP, corr, riskContrib, equityCurve, rollVol, rollSharpe] = await Promise.all([
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/performance`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/risk?confidence=${document.getElementById("confLevel").value}&horizon=${document.getElementById("varHorizon").value}&method=historical`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/risk?confidence=${document.getElementById("confLevel").value}&horizon=${document.getElementById("varHorizon").value}&method=parametric`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/correlation`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/risk-contribution`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/equity-curve`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/rolling?metric=volatility&window=${document.getElementById("rollWindow").value}`).catch(() => null),
+      api.get(`/portfolios/${CURRENT_PORTFOLIO_ID}/rolling?metric=sharpe&window=${document.getElementById("rollWindow").value}`).catch(() => null),
+    ]);
+
+    // Render each panel with API data
+    if (perf) renderAPIPerformance(perf, risk, riskP);
+    if (corr) renderAPICorrelation(corr);
+    if (equityCurve) renderAPIEquityCurve(equityCurve);
+    if (rollVol) renderAPIRollingVol(rollVol);
+    if (rollSharpe) renderAPIRollingSharpe(rollSharpe);
+    if (riskContrib) renderAPIRiskContribution(riskContrib);
+    if (risk && riskP) renderAPIVaRComparison(risk, riskP);
+
+    hideLoading();
+  } catch (e) {
+    hideLoading();
+    console.error("API fetch error:", e);
+  }
+}
+
+function showLoading(msg) {
+  document.getElementById("loadingText").textContent = msg || "Loading...";
+  document.getElementById("loadingOverlay").classList.add("active");
+}
+function hideLoading() {
+  document.getElementById("loadingOverlay").classList.remove("active");
+}
+
+/* =========================================================================
+   0e. API DATA RENDERERS
+   ========================================================================= */
+
+function renderAPIPerformance(perf, riskH, riskP) {
+  const row = document.getElementById("kpiRow");
+  const confidence = parseFloat(document.getElementById("confLevel").value);
+  const horizon = parseInt(document.getElementById("varHorizon").value);
+  const pfValueK = parseFloat(document.getElementById("pfValue").value) || 1000;
+  const pfValue = pfValueK * 1000;
+  const cl = Math.round(confidence * 100);
+
+  const varVal = riskH ? riskH.var : 0;
+  const cvarVal = riskH ? riskH.cvar : 0;
+
+  row.innerHTML = [
+    kpiHTML("Ann. Return", fmtPct(perf.cagr, 2), "CAGR"),
+    kpiHTML("Ann. Volatility", fmtPct(perf.volatility, 2), "std. deviation"),
+    kpiHTML("Sharpe Ratio", fmtNum(perf.sharpe, 2), `rf = 3.0%`),
+    kpiHTML(`VaR ${cl}% / ${horizon}D`, fmtPct(varVal, 2), fmtUSD(varVal * pfValue), "risk"),
+    kpiHTML(`CVaR ${cl}% / ${horizon}D`, fmtPct(cvarVal, 2), "expected shortfall", "risk"),
+    kpiHTML("Max Drawdown", fmtPct(riskH ? riskH.max_drawdown : 0, 2), "full sample", "neg"),
+    kpiHTML("Sortino", fmtNum(perf.sortino, 2), "downside-adjusted"),
+    kpiHTML("Beta", perf.beta != null ? fmtNum(perf.beta, 2) : "—", perf.alpha != null ? `α = ${fmtPct(perf.alpha, 2)}` : ""),
+  ].join("");
+}
+
+function renderAPICorrelation(corr) {
+  const z = corr.correlation_matrix;
+  const text = z.map(row => row.map(v => v.toFixed(2)));
+  const trace = {
+    type: "heatmap", z, x: corr.symbols, y: corr.symbols,
+    text, texttemplate: "%{text}", textfont: { size: 10.5, color: "#0a0d13" },
+    colorscale: [[0, "#e0616a"], [0.5, "#10141d"], [1, "#3ecfd9"]],
+    zmin: -1, zmax: 1, showscale: true,
+    colorbar: { thickness: 10, outlinewidth: 0, tickfont: { size: 9, color: "#8b93a3" } },
+    hovertemplate: "%{y} × %{x}: %{z:.2f}<extra></extra>",
+  };
+  const layout = baseLayout({
+    margin: { l: 110, r: 20, t: 10, b: 80 },
+    xaxis: { tickfont: { size: 9.5 }, tickangle: -35 },
+    yaxis: { tickfont: { size: 9.5 }, autorange: "reversed" },
+  });
+  Plotly.react("chartCorr", [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderAPIEquityCurve(data) {
+  const dates = data.dates;
+  const pfVals = data.portfolio_values;
+  const ddVals = data.drawdown;
+
+  const traces = [
+    { type: "scatter", mode: "lines", x: dates, y: pfVals.map(v => (v - 100)), line: { color: "#3ecfd9", width: 1.8 },
+      hovertemplate: "%{x}<br>%{y:.1f}%<extra></extra>" }
+  ];
+  if (data.benchmark_values) {
+    traces.push({
+      type: "scatter", mode: "lines", x: dates, y: data.benchmark_values.map(v => (v - 100)),
+      line: { color: "#e8a13d", width: 1.2, dash: "dot" }, name: "Benchmark",
+      hovertemplate: "%{x}<br>Benchmark %{y:.1f}%<extra></extra>"
+    });
+  }
+
+  Plotly.react("chartCumulative", traces, baseLayout({
+    margin: { l: 50, r: 20, t: 5, b: 5 },
+    yaxis: { title: { text: "Cum. return (%)", font: { size: 9.5 } } },
+    xaxis: { type: "date", showticklabels: false },
+    showlegend: !!data.benchmark_values,
+    legend: { orientation: "h", y: 1.1, x: 0, font: { size: 9, color: "#8b93a3" } },
+  }), PLOTLY_CONFIG);
+
+  if (ddVals) {
+    Plotly.react("chartDrawdown", [
+      { type: "scatter", mode: "lines", x: dates, y: ddVals.map(v => v * 100),
+        line: { color: "#e0616a", width: 1.4 }, fill: "tozeroy", fillcolor: "rgba(224,97,106,0.18)",
+        hovertemplate: "%{x}<br>%{y:.1f}%<extra></extra>" }
+    ], baseLayout({
+      margin: { l: 50, r: 20, t: 5, b: 34 },
+      yaxis: { title: { text: "Drawdown (%)", font: { size: 9.5 } } },
+      xaxis: { type: "date" },
+    }), PLOTLY_CONFIG);
+
+    const maxDD = Math.min(...ddVals);
+    document.getElementById("ddBadge").textContent = "Max DD " + fmtPct(maxDD, 1);
+  }
+}
+
+function renderAPIRollingVol(data) {
+  const volTrace = {
+    type: "scatter", mode: "lines", x: data.dates,
+    y: data.values.map(v => v === null ? null : v * 100),
+    line: { color: "#3ecfd9", width: 1.6 }, fill: "tozeroy", fillcolor: "rgba(62,207,217,0.08)",
+    hovertemplate: "%{x}<br>%{y:.1f}%<extra></extra>"
+  };
+  Plotly.react("chartRollVol", [volTrace], baseLayout({
+    margin: { l: 50, r: 20, t: 10, b: 34 },
+    yaxis: { title: { text: "Ann. vol (%)", font: { size: 10 } } },
+    xaxis: { type: "date" },
+  }), PLOTLY_CONFIG);
+}
+
+function renderAPIRollingSharpe(data) {
+  const shp = data.values;
+  const dates = data.dates;
+  const posMask = shp.map(v => v === null ? null : (v >= 0 ? v : null));
+  const negMask = shp.map(v => v === null ? null : (v < 0 ? v : null));
+  Plotly.react("chartRollSharpe", [
+    { type: "scatter", mode: "lines", x: dates, y: shp, line: { color: "#5a6274", width: 1 }, hoverinfo: "skip", showlegend: false },
+    { type: "scatter", mode: "lines", x: dates, y: posMask, line: { color: "#5fbf8f", width: 2 }, connectgaps: false, name: "Positive", hovertemplate: "%{x}<br>%{y:.2f}<extra></extra>" },
+    { type: "scatter", mode: "lines", x: dates, y: negMask, line: { color: "#e0616a", width: 2 }, connectgaps: false, name: "Negative", hovertemplate: "%{x}<br>%{y:.2f}<extra></extra>" },
+    { type: "scatter", mode: "lines", x: [dates[0], dates[dates.length - 1]], y: [0, 0], line: { color: "#232a38", width: 1 }, hoverinfo: "skip", showlegend: false },
+  ], baseLayout({
+    margin: { l: 45, r: 20, t: 10, b: 34 },
+    yaxis: { title: { text: "Rolling Sharpe", font: { size: 10 } } },
+    xaxis: { type: "date" },
+  }), PLOTLY_CONFIG);
+}
+
+function renderAPIRiskContribution(data) {
+  document.getElementById("riskContribPanel").style.display = "block";
+  const contribs = data.contributions;
+  const symbols = contribs.map(c => c.symbol);
+  const cctr = contribs.map(c => c.component_contribution * 100);
+  const pctContrib = contribs.map(c => c.percentage_contribution * 100);
+
+  Plotly.react("chartRiskContrib", [
+    { type: "bar", name: "Component Contribution", x: symbols, y: cctr, marker: { color: "#3ecfd9" },
+      text: cctr.map(v => v.toFixed(2) + "%"), textposition: "outside", textfont: { size: 10, color: "#8b93a3" },
+      hovertemplate: "%{x}<br>CCTR %{y:.2f}%<extra></extra>" },
+    { type: "bar", name: "% of Total Risk", x: symbols, y: pctContrib, marker: { color: "#e8a13d" },
+      text: pctContrib.map(v => v.toFixed(1) + "%"), textposition: "outside", textfont: { size: 10, color: "#8b93a3" },
+      hovertemplate: "%{x}<br>%{y:.1f}% of σp<extra></extra>" },
+  ], baseLayout({
+    margin: { l: 45, r: 15, t: 30, b: 36 },
+    barmode: "group",
+    yaxis: { title: { text: "Contribution (%)", font: { size: 10 } } },
+    showlegend: true,
+    legend: { orientation: "h", y: 1.22, x: 0, font: { size: 9.5, color: "#8b93a3" } },
+  }), PLOTLY_CONFIG);
+}
+
+function renderAPIVaRComparison(riskH, riskP) {
+  const confidence = parseFloat(document.getElementById("confLevel").value);
+  const methods = ["Historical", "Parametric"];
+  const varVals = [riskH.var, riskP.var].map(x => x * 100);
+  const cvarVals = [riskH.cvar, riskP.cvar].map(x => x * 100);
+  const traces = [
+    { type: "bar", name: `VaR ${Math.round(confidence * 100)}%`, x: methods, y: varVals, marker: { color: "#3ecfd9" },
+      text: varVals.map(v => v.toFixed(2) + "%"), textposition: "outside", textfont: { size: 10, color: "#8b93a3" },
+      hovertemplate: "%{x}<br>VaR %{y:.2f}%<extra></extra>" },
+    { type: "bar", name: "CVaR (Expected Shortfall)", x: methods, y: cvarVals, marker: { color: "#e8a13d" },
+      text: cvarVals.map(v => v.toFixed(2) + "%"), textposition: "outside", textfont: { size: 10, color: "#8b93a3" },
+      hovertemplate: "%{x}<br>CVaR %{y:.2f}%<extra></extra>" },
+  ];
+  Plotly.react("chartVaR", traces, baseLayout({
+    margin: { l: 45, r: 15, t: 30, b: 36 },
+    barmode: "group",
+    yaxis: { title: { text: "Loss (% of portfolio)", font: { size: 10 } } },
+    showlegend: true,
+    legend: { orientation: "h", y: 1.22, x: 0, font: { size: 9.5, color: "#8b93a3" } },
+  }), PLOTLY_CONFIG);
+}
+
+
+/* =========================================================================
+   1. RNG + MATH PRIMITIVES
+   ========================================================================= */
+
+function mulberry32(seed){
+  return function(){
+    seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function makeGaussian(rng){
+  let spare = null;
+  return function(){
+    if (spare !== null){ const v = spare; spare = null; return v; }
+    let u, v, s;
+    do{
+      u = rng()*2-1; v = rng()*2-1; s = u*u+v*v;
+    } while (s>=1 || s===0);
+    const mul = Math.sqrt(-2*Math.log(s)/s);
+    spare = v*mul;
+    return u*mul;
+  };
+}
+
+function zeros(n,m){ return Array.from({length:n}, () => new Array(m).fill(0)); }
+
+function matMul(A,B){
+  const n=A.length, k=A[0].length, m=B[0].length;
+  const C = zeros(n,m);
+  for(let i=0;i<n;i++) for(let j=0;j<m;j++){ let s=0; for(let p=0;p<k;p++) s+=A[i][p]*B[p][j]; C[i][j]=s; }
+  return C;
+}
+function transpose(A){
+  const n=A.length, m=A[0].length; const T=zeros(m,n);
+  for(let i=0;i<n;i++) for(let j=0;j<m;j++) T[j][i]=A[i][j];
+  return T;
+}
+function matVec(A,v){ return A.map(row => row.reduce((s,a,i)=>s+a*v[i],0)); }
+function dot(a,b){ return a.reduce((s,x,i)=>s+x*b[i],0); }
+
+function inverse(M){
+  const n=M.length;
+  const A = M.map((row,i)=>[...row, ...Array.from({length:n},(_,j)=>i===j?1:0)]);
+  for(let col=0; col<n; col++){
+    let pivotRow=col, maxVal=Math.abs(A[col][col]);
+    for(let r=col+1;r<n;r++){ if(Math.abs(A[r][col])>maxVal){maxVal=Math.abs(A[r][col]); pivotRow=r;} }
+    if(maxVal<1e-10){ A[col][col]+=1e-8; maxVal=Math.abs(A[col][col]); }
+    [A[col],A[pivotRow]]=[A[pivotRow],A[col]];
+    const pivot=A[col][col];
+    for(let j=0;j<2*n;j++) A[col][j]/=pivot;
+    for(let r=0;r<n;r++){
+      if(r===col) continue;
+      const factor=A[r][col];
+      for(let j=0;j<2*n;j++) A[r][j]-=factor*A[col][j];
+    }
+  }
+  return A.map(row=>row.slice(n));
+}
+
+function cholesky(M){
+  const n=M.length; const L=zeros(n,n);
+  for(let i=0;i<n;i++){
+    for(let j=0;j<=i;j++){
+      let s=0; for(let k=0;k<j;k++) s+=L[i][k]*L[j][k];
+      if(i===j){ const val=M[i][i]-s; L[i][j]=Math.sqrt(Math.max(val,1e-12)); }
+      else{ L[i][j]=(M[i][j]-s)/(L[j][j]||1e-12); }
+    }
+  }
+  return L;
+}
+
+function mean(arr){ return arr.reduce((a,b)=>a+b,0)/arr.length; }
+function std(arr){ const m=mean(arr); return Math.sqrt(mean(arr.map(x=>(x-m)*(x-m)))); }
+
+function percentile(arr, p){
+  const s = [...arr].sort((a,b)=>a-b);
+  const idx = p*(s.length-1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  if (lo===hi) return s[lo];
+  return s[lo] + (s[hi]-s[lo])*(idx-lo);
+}
+
+function normPdf(x){ return Math.exp(-0.5*x*x)/Math.sqrt(2*Math.PI); }
+function normInv(p){
+  const a=[-3.969683028665376e+01,2.209460984245205e+02,-2.759285104469687e+02,1.383577518672690e+02,-3.066479806614716e+01,2.506628277459239e+00];
+  const b=[-5.447609879822406e+01,1.615858368580409e+02,-1.556989798598866e+02,6.680131188771972e+01,-1.328068155288572e+01];
+  const c=[-7.784894002430293e-03,-3.223964580411365e-01,-2.400758277161838e+00,-2.549732539343734e+00,4.374664141464968e+00,2.938163982698783e+00];
+  const d=[7.784695709041462e-03,3.224671290700398e-01,2.445134137142996e+00,3.754408661907416e+00];
+  const plow=0.02425, phigh=1-plow;
+  let q,r;
+  if(p<plow){ q=Math.sqrt(-2*Math.log(p)); return (((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  if(p>phigh){ q=Math.sqrt(-2*Math.log(1-p)); return -(((((c[0]*q+c[1])*q+c[2])*q+c[3])*q+c[4])*q+c[5]) / ((((d[0]*q+d[1])*q+d[2])*q+d[3])*q+1); }
+  q=p-0.5; r=q*q;
+  return (((((a[0]*r+a[1])*r+a[2])*r+a[3])*r+a[4])*r+a[5])*q / (((((b[0]*r+b[1])*r+b[2])*r+b[3])*r+b[4])*r+1);
+}
+
+/* =========================================================================
+   2. SYNTHETIC DATA GENERATION + CSV PARSING
+   ========================================================================= */
+
+const ASSET_DEFS = [
+  { name:"US Large-Cap Equity", drift:0.09,  vol:0.16, color:"#3ecfd9" },
+  { name:"Intl Developed Equity", drift:0.07, vol:0.18, color:"#7fa8ff" },
+  { name:"Government Bonds", drift:0.03, vol:0.05, color:"#5fbf8f" },
+  { name:"Commodities", drift:0.05, vol:0.22, color:"#e8a13d" },
+  { name:"REIT / Real Assets", drift:0.06, vol:0.20, color:"#e0616a" },
+];
+const BASE_CORR = [
+  [1.00, 0.75,-0.20, 0.30, 0.60],
+  [0.75, 1.00,-0.15, 0.35, 0.50],
+  [-0.20,-0.15, 1.00,-0.10, 0.10],
+  [0.30, 0.35,-0.10, 1.00, 0.25],
+  [0.60, 0.50, 0.10, 0.25, 1.00],
+];
+const TRADING_DAYS = 252;
+
+function generateSyntheticPrices(nDays, seed){
+  const rng = mulberry32(seed);
+  const gauss = makeGaussian(rng);
+  const n = ASSET_DEFS.length;
+  const L = cholesky(BASE_CORR);
+  const prices = ASSET_DEFS.map(()=>[100]);
+  const dt = 1/TRADING_DAYS;
+  for(let t=1;t<nDays;t++){
+    const z = Array.from({length:n}, ()=>gauss());
+    const correlatedZ = matVec(L, z);
+    for(let i=0;i<n;i++){
+      const mu = ASSET_DEFS[i].drift, sigma = ASSET_DEFS[i].vol;
+      const drift = (mu - 0.5*sigma*sigma)*dt;
+      const shock = sigma*Math.sqrt(dt)*correlatedZ[i];
+      const prev = prices[i][t-1];
+      prices[i].push(prev*Math.exp(drift+shock));
+    }
+  }
+  const dates = [];
+  const start = new Date(); start.setDate(start.getDate()-nDays*1.45);
+  let d = new Date(start);
+  while(dates.length<nDays){
+    d.setDate(d.getDate()+1);
+    const day = d.getDay();
+    if(day!==0 && day!==6) dates.push(new Date(d));
+  }
+  return { dates, assetNames: ASSET_DEFS.map(a=>a.name), colors: ASSET_DEFS.map(a=>a.color), prices };
+}
+
+function parseCSV(text){
+  const lines = text.trim().split(/\r?\n/).filter(l=>l.trim().length>0);
+  const header = lines[0].split(",").map(s=>s.trim());
+  const assetNames = header.slice(1);
+  const dates = [];
+  const prices = assetNames.map(()=>[]);
+  for(let i=1;i<lines.length;i++){
+    const cols = lines[i].split(",");
+    if(cols.length < assetNames.length+1) continue;
+    dates.push(new Date(cols[0]));
+    for(let j=0;j<assetNames.length;j++){
+      prices[j].push(parseFloat(cols[j+1]));
+    }
+  }
+  const palette = ["#3ecfd9","#7fa8ff","#5fbf8f","#e8a13d","#e0616a","#c792ea","#f07178","#82aaff"];
+  const colors = assetNames.map((_,i)=>palette[i%palette.length]);
+  return { dates, assetNames, colors, prices };
+}
+
+/* =========================================================================
+   3. STATE
+   ========================================================================= */
+
+let DATA = generateSyntheticPrices(756, 42);
+let WEIGHTS = ASSET_DEFS.map(()=>100/ASSET_DEFS.length); // raw 0-100 slider values
+
+/* =========================================================================
+   4. CORE COMPUTATION PIPELINE
+   ========================================================================= */
+
+function computeAll(){
+  const n = DATA.assetNames.length;
+  const nDays = DATA.prices[0].length;
+
+  const returns = DATA.prices.map(series => {
+    const r = [];
+    for(let t=1;t<series.length;t++) r.push(Math.log(series[t]/series[t-1]));
+    return r;
+  });
+  const nRet = returns[0].length;
+
+  const retByDay = [];
+  for(let t=0;t<nRet;t++) retByDay.push(returns.map(r=>r[t]));
+
+  const muDaily = returns.map(r => mean(r));
+  const covDaily = zeros(n,n);
+  for(let i=0;i<n;i++){
+    for(let j=0;j<n;j++){
+      let s=0;
+      for(let t=0;t<nRet;t++) s += (returns[i][t]-muDaily[i])*(returns[j][t]-muDaily[j]);
+      covDaily[i][j] = s/(nRet-1);
+    }
+  }
+  const muAnnual = muDaily.map(m=>m*TRADING_DAYS);
+  const covAnnual = covDaily.map(row=>row.map(x=>x*TRADING_DAYS));
+  const stdAnnual = covAnnual.map((row,i)=>Math.sqrt(row[i]));
+  const corr = zeros(n,n);
+  for(let i=0;i<n;i++) for(let j=0;j<n;j++) corr[i][j] = covDaily[i][j]/(Math.sqrt(covDaily[i][i])*Math.sqrt(covDaily[j][j]) || 1e-12);
+
+  const wSum = WEIGHTS.reduce((a,b)=>a+b,0) || 1;
+  const w = WEIGHTS.map(x=>x/wSum);
+
+  const pfDailyReturns = retByDay.map(day => dot(day, w));
+  const pfMuDaily = mean(pfDailyReturns);
+  const pfMuAnnual = pfMuDaily*TRADING_DAYS;
+  const pfVarDaily = dot(matVec(covDaily, w), w);
+  const pfVolDaily = Math.sqrt(Math.max(pfVarDaily,0));
+  const pfVolAnnual = pfVolDaily*Math.sqrt(TRADING_DAYS);
+
+  const rf = parseFloat(document.getElementById("rfRate").value)/100;
+  const sharpe = (pfMuAnnual - rf)/ (pfVolAnnual||1e-9);
+
+  return {
+    n, nDays, returns, retByDay, muDaily, covDaily, muAnnual, covAnnual, stdAnnual, corr,
+    w, pfDailyReturns, pfMuDaily, pfMuAnnual, pfVolDaily, pfVolAnnual, rf, sharpe
+  };
+}
+
+/* =========================================================================
+   5. VaR / CVaR
+   ========================================================================= */
+
+function scaledHistoricalReturns(pfDailyReturns, horizon){
+  if(horizon===1) return pfDailyReturns;
+  const scale = Math.sqrt(horizon);
+  const m = mean(pfDailyReturns);
+  return pfDailyReturns.map(r => m*horizon + (r-m)*scale);
+}
+
+function historicalVaR(pfDailyReturns, confidence, horizon){
+  const scaled = scaledHistoricalReturns(pfDailyReturns, horizon);
+  const tailP = 1-confidence;
+  const cutoff = percentile(scaled, tailP);
+  const varVal = -cutoff;
+  const tail = scaled.filter(r=>r<=cutoff);
+  const cvar = tail.length ? -mean(tail) : varVal;
+  return { varVal, cvar };
+}
+
+function parametricVaR(muDaily, sigmaDaily, confidence, horizon){
+  const muH = muDaily*horizon;
+  const sigmaH = sigmaDaily*Math.sqrt(horizon);
+  const z = -normInv(1-confidence);
+  const varVal = -(muH - z*sigmaH);
+  const alpha = 1-confidence;
+  const cvar = -(muH - sigmaH*normPdf(normInv(alpha))/alpha);
+  return { varVal, cvar };
+}
+
+function monteCarloVaR(muVecDaily, covDaily, w, confidence, horizon, nSims, seed){
+  const rng = mulberry32(seed);
+  const gauss = makeGaussian(rng);
+  const n = w.length;
+  const L = cholesky(covDaily);
+  const terminalReturns = new Array(nSims);
+  for(let s=0;s<nSims;s++){
+    let cum = 0;
+    for(let t=0;t<horizon;t++){
+      const z = Array.from({length:n}, ()=>gauss());
+      const corrShock = matVec(L, z);
+      let dayRet = 0;
+      for(let i=0;i<n;i++) dayRet += w[i]*(muVecDaily[i] + corrShock[i]);
+      cum += dayRet;
+    }
+    terminalReturns[s]=cum;
+  }
+  const tailP = 1-confidence;
+  const cutoff = percentile(terminalReturns, tailP);
+  const varVal = -cutoff;
+  const tail = terminalReturns.filter(r=>r<=cutoff);
+  const cvar = tail.length ? -mean(tail) : varVal;
+  return { varVal, cvar, terminalReturns };
+}
+
+/* =========================================================================
+   6. EFFICIENT FRONTIER
+   ========================================================================= */
+
+function analyticalFrontier(muAnnual, covAnnual){
+  const n = muAnnual.length;
+  const ones = new Array(n).fill(1);
+  const invC = inverse(covAnnual);
+  const A = dot(matVec(invC, ones), ones);
+  const B = dot(matVec(invC, ones), muAnnual);
+  const C = dot(matVec(invC, muAnnual), muAnnual);
+  const D = A*C - B*B;
+  const minVarReturn = B/A;
+  const minVarVol = Math.sqrt(Math.max(1/A,0));
+  function volForReturn(r){
+    const v = (A*r*r - 2*B*r + C)/D;
+    return Math.sqrt(Math.max(v,0));
+  }
+  function weightsForReturn(r){
+    const bracket = ones.map((o,i) => (C - B*r)*o + (A*r - B)*muAnnual[i]);
+    return matVec(invC, bracket).map(x=>x/D);
+  }
+  function tangency(rf){
+    const excess = muAnnual.map(m=>m-rf);
+    const raw = matVec(invC, excess);
+    const s = raw.reduce((a,b)=>a+b,0);
+    const w = raw.map(x=>x/(s||1e-9));
+    const ret = dot(w, muAnnual);
+    const vol = Math.sqrt(Math.max(dot(matVec(covAnnual,w),w),0));
+    return { w, ret, vol };
+  }
+  return { A,B,C,D, minVarReturn, minVarVol, volForReturn, weightsForReturn, tangency };
+}
+
+function randomLongOnlyPortfolios(muAnnual, covAnnual, nPortfolios, rf, seed){
+  const n = muAnnual.length;
+  const rng = mulberry32(seed);
+  const pts = [];
+  for(let k=0;k<nPortfolios;k++){
+    const raw = Array.from({length:n}, ()=> -Math.log(1-rng()));
+    const s = raw.reduce((a,b)=>a+b,0);
+    const w = raw.map(x=>x/s);
+    const ret = dot(w, muAnnual);
+    const vol = Math.sqrt(Math.max(dot(matVec(covAnnual,w),w),0));
+    const sh = (ret-rf)/(vol||1e-9);
+    pts.push({ w, ret, vol, sharpe: sh });
+  }
+  return pts;
+}
+
+/* =========================================================================
+   7. ROLLING METRICS, VOL CLUSTERING, DRAWDOWN
+   ========================================================================= */
+
+function rollingVolatility(pfDailyReturns, window){
+  const out = [];
+  for(let t=0;t<pfDailyReturns.length;t++){
+    if(t<window-1){ out.push(null); continue; }
+    const slice = pfDailyReturns.slice(t-window+1, t+1);
+    out.push(std(slice)*Math.sqrt(TRADING_DAYS));
+  }
+  return out;
+}
+
+function rollingSharpe(pfDailyReturns, window, rf){
+  const out = [];
+  for(let t=0;t<pfDailyReturns.length;t++){
+    if(t<window-1){ out.push(null); continue; }
+    const slice = pfDailyReturns.slice(t-window+1, t+1);
+    const m = mean(slice)*TRADING_DAYS;
+    const v = std(slice)*Math.sqrt(TRADING_DAYS);
+    out.push((m-rf)/(v||1e-9));
+  }
+  return out;
+}
+
+function autocorrelation(series, maxLag){
+  const m = mean(series);
+  const denom = series.reduce((s,x)=>s+(x-m)*(x-m),0);
+  const out = [];
+  for(let lag=1; lag<=maxLag; lag++){
+    let num=0;
+    for(let t=0;t<series.length-lag;t++) num += (series[t]-m)*(series[t+lag]-m);
+    out.push(num/denom);
+  }
+  return out;
+}
+
+function drawdownSeries(pfDailyReturns){
+  const wealth = [1];
+  for(const r of pfDailyReturns) wealth.push(wealth[wealth.length-1]*Math.exp(r));
+  const runMax = [];
+  let m = -Infinity;
+  for(const v of wealth){ m = Math.max(m,v); runMax.push(m); }
+  const dd = wealth.map((v,i)=> v/runMax[i]-1);
+  const maxDD = Math.min(...dd);
+  const current = dd[dd.length-1];
+  return { wealth, dd, maxDD, current };
+}
+
+/* =========================================================================
+   8. PLOTLY THEME HELPERS
+   ========================================================================= */
+
+const PLOTLY_FONT = { family:"IBM Plex Mono, monospace", size:11, color:"#8b93a3" };
+function baseLayout(extra){
+  return Object.assign({
+    paper_bgcolor:"transparent",
+    plot_bgcolor:"transparent",
+    font: PLOTLY_FONT,
+    margin:{l:50,r:20,t:10,b:36},
+    showlegend:false,
+    xaxis:{ gridcolor:"#1a202c", zerolinecolor:"#232a38", linecolor:"#232a38" },
+    yaxis:{ gridcolor:"#1a202c", zerolinecolor:"#232a38", linecolor:"#232a38" },
+    hoverlabel:{ bgcolor:"#141924", bordercolor:"#232a38", font:{family:"IBM Plex Mono, monospace", size:11, color:"#e6e9ef"} }
+  }, extra||{});
+}
+const PLOTLY_CONFIG = { displayModeBar:false, responsive:true };
+
+function fmtPct(x, d){ if(x===null||x===undefined||isNaN(x)) return "—"; return (x*100).toFixed(d===undefined?2:d)+"%"; }
+function fmtNum(x, d){ if(x===null||x===undefined||isNaN(x)) return "—"; return x.toFixed(d===undefined?2:d); }
+function fmtUSD(x){ if(x===null||x===undefined||isNaN(x)) return "—"; return "$"+x.toLocaleString(undefined,{maximumFractionDigits:0}); }
+function fmtDate(d){ return d.toISOString().slice(0,10); }
+
+/* =========================================================================
+   9. RENDER
+   ========================================================================= */
+
+let CACHED_MC = null;
+
+function render(){
+  const model = computeAll();
+  const confidence = parseFloat(document.getElementById("confLevel").value);
+  const horizon = parseInt(document.getElementById("varHorizon").value);
+  const pfValueK = parseFloat(document.getElementById("pfValue").value)||1000;
+  const pfValue = pfValueK*1000;
+  const mcSims = parseInt(document.getElementById("mcSims").value);
+  const mcHorizon = parseInt(document.getElementById("mcHorizon").value);
+  const rollWindow = Math.max(5, parseInt(document.getElementById("rollWindow").value)||21);
+
+  document.getElementById("asOf").textContent = "AS OF " + fmtDate(DATA.dates[DATA.dates.length-1]) + "  ·  " + model.nDays + " OBS";
+
+  const hVaR = historicalVaR(model.pfDailyReturns, confidence, horizon);
+  const pVaR = parametricVaR(model.pfMuDaily, model.pfVolDaily, confidence, horizon);
+  const mcVaRRes = monteCarloVaR(model.muDaily, model.covDaily, model.w, confidence, horizon, 4000, 7);
+
+  renderTicker(model, hVaR, pVaR, mcVaRRes, confidence, horizon);
+  renderKPIs(model, hVaR, pVaR, mcVaRRes, confidence, horizon, pfValue);
+  renderAllocation(model);
+  renderCorrelation(model);
+  renderFrontier(model);
+  renderMonteCarloPaths(model, mcSims, mcHorizon, pfValue);
+  renderVaRComparisonLocal(hVaR, pVaR, mcVaRRes, confidence, horizon, pfValue);
+  renderMCHistogram(mcVaRRes, confidence, horizon);
+  renderRolling(model, rollWindow);
+  renderVolClustering(model);
+  renderDrawdown(model);
+}
+
+function renderTicker(model, hVaR, pVaR, mcVaRRes, confidence, horizon){
+  const track = document.getElementById("tickerTrack");
+  const items = [];
+  DATA.assetNames.forEach((name,i)=>{
+    const series = DATA.prices[i];
+    const chg = series[series.length-1]/series[series.length-2]-1;
+    const cls = chg>=0 ? "tick-up":"tick-down";
+    items.push(`<span class="tick-item">${name} <b>${series[series.length-1].toFixed(2)}</b> <span class="${cls}">${chg>=0?"▲":"▼"} ${(Math.abs(chg)*100).toFixed(2)}%</span></span>`);
+  });
+  items.push(`<span class="tick-item">PORTFOLIO VOL <b>${fmtPct(model.pfVolAnnual,1)}</b></span>`);
+  items.push(`<span class="tick-item">SHARPE <b>${fmtNum(model.sharpe,2)}</b></span>`);
+  items.push(`<span class="tick-item">VaR ${Math.round(confidence*100)}%/${horizon}D <b class="tick-down">${fmtPct(mcVaRRes.varVal,2)}</b></span>`);
+  const html = items.join('<span style="color:#232a38">│</span>');
+  track.innerHTML = html + '<span style="color:#232a38">│</span>' + html;
+}
+
+function kpiHTML(label, val, sub, cls){
+  return `<div class="kpi ${cls||""}"><div class="k-label">${label}</div><div class="k-val">${val}</div><div class="k-sub">${sub||""}</div></div>`;
+}
+
+function renderKPIs(model, hVaR, pVaR, mcVaRRes, confidence, horizon, pfValue){
+  const row = document.getElementById("kpiRow");
+  const dd = drawdownSeries(model.pfDailyReturns);
+  const cl = Math.round(confidence*100);
+  row.innerHTML = [
+    kpiHTML("Ann. Return", fmtPct(model.pfMuAnnual,2), "expected, historical"),
+    kpiHTML("Ann. Volatility", fmtPct(model.pfVolAnnual,2), "std. deviation"),
+    kpiHTML("Sharpe Ratio", fmtNum(model.sharpe,2), `rf = ${fmtPct(model.rf,1)}`),
+    kpiHTML(`VaR ${cl}% / ${horizon}D (MC)`, fmtPct(mcVaRRes.varVal,2), fmtUSD(mcVaRRes.varVal*pfValue), "risk"),
+    kpiHTML(`CVaR ${cl}% / ${horizon}D`, fmtPct(mcVaRRes.cvar,2), "expected shortfall", "risk"),
+    kpiHTML("Max Drawdown", fmtPct(dd.maxDD,2), "full sample", "neg"),
+    kpiHTML("Current Drawdown", fmtPct(dd.current,2), "from running peak", dd.current<-0.001?"neg":""),
+    kpiHTML("Portfolio Value", fmtUSD(pfValue), "notional (input)"),
+  ].join("");
+}
+
+function renderAllocation(model){
+  const trace = {
+    type:"pie", labels: DATA.assetNames, values: model.w.map(x=>x*100),
+    hole:0.62, marker:{colors: DATA.colors, line:{color:"#0a0d13", width:2}},
+    textinfo:"none",
+    hovertemplate:"%{label}<br>%{value:.1f}%<extra></extra>",
+  };
+  const layout = baseLayout({
+    margin:{l:10,r:10,t:10,b:10},
+    annotations:[{
+      text: fmtPct(model.pfVolAnnual,1)+"<br><span style='font-size:9px;color:#5a6274'>ANN. VOL</span>",
+      showarrow:false, font:{size:16, color:"#e6e9ef", family:"IBM Plex Mono, monospace"}, x:0.5,y:0.5
+    }],
+    showlegend:true,
+    legend:{orientation:"v", x:1.02, y:0.5, font:{size:10.5,color:"#8b93a3"}},
+  });
+  Plotly.react("chartAllocation", [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderCorrelation(model){
+  const z = model.corr;
+  const text = z.map(row=>row.map(v=>v.toFixed(2)));
+  const trace = {
+    type:"heatmap", z, x: DATA.assetNames, y: DATA.assetNames,
+    text, texttemplate:"%{text}", textfont:{size:10.5, color:"#0a0d13"},
+    colorscale:[[0,"#e0616a"],[0.5,"#10141d"],[1,"#3ecfd9"]],
+    zmin:-1, zmax:1, showscale:true,
+    colorbar:{thickness:10, outlinewidth:0, tickfont:{size:9,color:"#8b93a3"}},
+    hovertemplate:"%{y} × %{x}: %{z:.2f}<extra></extra>",
+  };
+  const layout = baseLayout({
+    margin:{l:110,r:20,t:10,b:80},
+    xaxis:{ tickfont:{size:9.5}, tickangle:-35 },
+    yaxis:{ tickfont:{size:9.5}, autorange:"reversed" },
+  });
+  Plotly.react("chartCorr", [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderFrontier(model){
+  const rf = model.rf;
+  const cloud = randomLongOnlyPortfolios(model.muAnnual, model.covAnnual, 12000, rf, 99);
+  const af = analyticalFrontier(model.muAnnual, model.covAnnual);
+
+  let minVolPt = cloud[0], maxSharpePt = cloud[0];
+  for(const p of cloud){
+    if(p.vol < minVolPt.vol) minVolPt = p;
+    if(p.sharpe > maxSharpePt.sharpe) maxSharpePt = p;
+  }
+  window.__minVolPt = minVolPt;
+  window.__maxSharpePt = maxSharpePt;
+
+  const rMin = af.minVarReturn, rMax = Math.max(...model.muAnnual)*1.35;
+  const curveR = [], curveVol = [];
+  for(let i=0;i<=60;i++){
+    const r = rMin + (rMax-rMin)*i/60;
+    curveR.push(r); curveVol.push(af.volForReturn(r));
+  }
+
+  const tan = af.tangency(rf);
+  const cmlVol = [0, tan.vol*1.4];
+  const cmlRet = cmlVol.map(v => rf + (tan.ret-rf)/tan.vol * v);
+
+  const traces = [
+    { type:"scattergl", mode:"markers", name:"Random portfolios",
+      x: cloud.map(p=>p.vol*100), y: cloud.map(p=>p.ret*100),
+      marker:{ size:4, color: cloud.map(p=>p.sharpe), colorscale:[[0,"#1e5a5f"],[0.5,"#3ecfd9"],[1,"#e8a13d"]], opacity:0.55,
+        colorbar:{thickness:8, len:0.5, y:0.75, outlinewidth:0, tickfont:{size:9,color:"#8b93a3"}, title:{text:"Sharpe", font:{size:9,color:"#8b93a3"}}} },
+      hovertemplate:"Vol %{x:.1f}%<br>Ret %{y:.1f}%<extra></extra>",
+    },
+    { type:"scatter", mode:"lines", name:"Analytical frontier (unconstrained)",
+      x: curveVol.map(v=>v*100), y: curveR.map(r=>r*100),
+      line:{ color:"#e6e9ef", width:2, dash:"dot" },
+      hovertemplate:"Efficient vol %{x:.1f}%<br>Ret %{y:.1f}%<extra></extra>",
+    },
+    { type:"scatter", mode:"lines", name:"Capital Market Line",
+      x: cmlVol.map(v=>v*100), y: cmlRet.map(r=>r*100),
+      line:{ color:"#e8a13d", width:1.6, dash:"dash" },
+      hovertemplate:"CML<extra></extra>",
+    },
+    { type:"scatter", mode:"markers", name:"Current portfolio",
+      x:[model.pfVolAnnual*100], y:[model.pfMuAnnual*100],
+      marker:{ symbol:"star", size:16, color:"#e6e9ef", line:{color:"#0a0d13",width:1.5} },
+      hovertemplate:"Current portfolio<br>Vol %{x:.1f}%  Ret %{y:.1f}%<extra></extra>",
+    },
+    { type:"scatter", mode:"markers", name:"Min variance (long-only)",
+      x:[minVolPt.vol*100], y:[minVolPt.ret*100],
+      marker:{ symbol:"diamond", size:11, color:"#5fbf8f", line:{color:"#0a0d13",width:1.5} },
+      hovertemplate:"Min-variance<br>Vol %{x:.1f}%  Ret %{y:.1f}%<extra></extra>",
+    },
+    { type:"scatter", mode:"markers", name:"Max Sharpe (long-only)",
+      x:[maxSharpePt.vol*100], y:[maxSharpePt.ret*100],
+      marker:{ symbol:"diamond", size:11, color:"#e8a13d", line:{color:"#0a0d13",width:1.5} },
+      hovertemplate:"Max-Sharpe (tangency)<br>Vol %{x:.1f}%  Ret %{y:.1f}%<extra></extra>",
+    },
+  ];
+  const layout = baseLayout({
+    margin:{l:55,r:20,t:10,b:44},
+    xaxis:{ title:{text:"Annualized Volatility (%)", font:{size:10.5}}, gridcolor:"#1a202c" },
+    yaxis:{ title:{text:"Annualized Return (%)", font:{size:10.5}}, gridcolor:"#1a202c" },
+    showlegend:true,
+    legend:{ orientation:"h", y:1.14, x:0, font:{size:9.5,color:"#8b93a3"} },
+  });
+  Plotly.react("chartFrontier", traces, layout, PLOTLY_CONFIG);
+  document.getElementById("frontierBadge").textContent = "Max Sharpe " + fmtNum(maxSharpePt.sharpe,2);
+}
+
+function renderMonteCarloPaths(model, nSims, horizonDays, pfValue){
+  const rng = mulberry32(123);
+  const gauss = makeGaussian(rng);
+  const n = model.n;
+  const L = cholesky(model.covDaily);
+  const nSample = Math.min(nSims, 6000);
+  const values = Array.from({length:horizonDays+1}, ()=> new Array(nSample));
+  for(let s=0;s<nSample;s++){
+    let v = 1;
+    values[0][s] = v;
+    for(let t=1;t<=horizonDays;t++){
+      const z = Array.from({length:n}, ()=>gauss());
+      const corrShock = matVec(L, z);
+      let dayRet = 0;
+      for(let i=0;i<n;i++) dayRet += model.w[i]*(model.muDaily[i]+corrShock[i]);
+      v = v*Math.exp(dayRet);
+      values[t][s] = v;
+    }
+  }
+  const p05=[],p25=[],p50=[],p75=[],p95=[];
+  for(let t=0;t<=horizonDays;t++){
+    p05.push(percentile(values[t],0.05)*pfValue);
+    p25.push(percentile(values[t],0.25)*pfValue);
+    p50.push(percentile(values[t],0.50)*pfValue);
+    p75.push(percentile(values[t],0.75)*pfValue);
+    p95.push(percentile(values[t],0.95)*pfValue);
+  }
+  const xs = Array.from({length:horizonDays+1}, (_,i)=>i);
+  const sampleTraces = [];
+  for(let s=0;s<10;s++){
+    const path = xs.map(t=>values[t][s]*pfValue);
+    sampleTraces.push({ type:"scatter", mode:"lines", x:xs, y:path, line:{color:"rgba(230,233,239,0.10)", width:1}, hoverinfo:"skip", showlegend:false });
+  }
+  const traces = [
+    ...sampleTraces,
+    { type:"scatter", mode:"lines", x:xs, y:p95, line:{width:0}, showlegend:false, hoverinfo:"skip" },
+    { type:"scatter", mode:"lines", x:xs, y:p05, fill:"tonexty", fillcolor:"rgba(62,207,217,0.08)", line:{width:0}, name:"5–95%", hoverinfo:"skip" },
+    { type:"scatter", mode:"lines", x:xs, y:p75, line:{width:0}, showlegend:false, hoverinfo:"skip" },
+    { type:"scatter", mode:"lines", x:xs, y:p25, fill:"tonexty", fillcolor:"rgba(62,207,217,0.22)", line:{width:0}, name:"25–75%", hoverinfo:"skip" },
+    { type:"scatter", mode:"lines", x:xs, y:p50, line:{color:"#3ecfd9", width:2.2}, name:"Median", hovertemplate:"Day %{x}<br>$%{y:,.0f}<extra></extra>" },
+    { type:"scatter", mode:"lines", x:xs, y: xs.map(()=>pfValue), line:{color:"#5a6274", width:1, dash:"dot"}, name:"Start value", hoverinfo:"skip" },
+  ];
+  const layout = baseLayout({
+    margin:{l:65,r:20,t:10,b:40},
+    xaxis:{ title:{text:"Trading days ahead", font:{size:10.5}} },
+    yaxis:{ title:{text:"Portfolio value ($)", font:{size:10.5}}, tickprefix:"$" },
+    showlegend:true,
+    legend:{ orientation:"h", y:1.1, x:0, font:{size:9.5,color:"#8b93a3"} },
+  });
+  Plotly.react("chartMC", traces, layout, PLOTLY_CONFIG);
+  document.getElementById("mcBadge").textContent = nSample.toLocaleString() + " paths × " + horizonDays + "d";
+}
+
+function renderVaRComparisonLocal(hVaR, pVaR, mcVaRRes, confidence, horizon, pfValue){
+  const methods = ["Historical","Parametric","Monte Carlo"];
+  const varVals = [hVaR.varVal, pVaR.varVal, mcVaRRes.varVal].map(x=>x*100);
+  const cvarVals = [hVaR.cvar, pVaR.cvar, mcVaRRes.cvar].map(x=>x*100);
+  const traces = [
+    { type:"bar", name:`VaR ${Math.round(confidence*100)}%`, x:methods, y:varVals, marker:{color:"#3ecfd9"},
+      text: varVals.map(v=>v.toFixed(2)+"%"), textposition:"outside", textfont:{size:10,color:"#8b93a3"},
+      hovertemplate:"%{x}<br>VaR %{y:.2f}%<extra></extra>" },
+    { type:"bar", name:"CVaR (Expected Shortfall)", x:methods, y:cvarVals, marker:{color:"#e8a13d"},
+      text: cvarVals.map(v=>v.toFixed(2)+"%"), textposition:"outside", textfont:{size:10,color:"#8b93a3"},
+      hovertemplate:"%{x}<br>CVaR %{y:.2f}%<extra></extra>" },
+  ];
+  const layout = baseLayout({
+    margin:{l:45,r:15,t:30,b:36},
+    barmode:"group",
+    yaxis:{ title:{text:"Loss (% of portfolio)", font:{size:10}} },
+    showlegend:true,
+    legend:{ orientation:"h", y:1.22, x:0, font:{size:9.5,color:"#8b93a3"} },
+  });
+  Plotly.react("chartVaR", traces, layout, PLOTLY_CONFIG);
+}
+
+function renderMCHistogram(mcVaRRes, confidence, horizon){
+  const returns = mcVaRRes.terminalReturns.map(x=>x*100);
+  const cutoff = -mcVaRRes.varVal*100;
+  const trace = {
+    type:"histogram", x: returns, nbinsx:60, marker:{color:"#3ecfd9", opacity:0.75},
+    hovertemplate:"Return %{x:.2f}%<extra></extra>",
+  };
+  const layout = baseLayout({
+    margin:{l:45,r:15,t:10,b:36},
+    xaxis:{ title:{text:`${horizon}-day return (%)`, font:{size:10}} },
+    yaxis:{ title:{text:"Simulations", font:{size:10}} },
+    shapes:[{ type:"line", x0:cutoff, x1:cutoff, y0:0, y1:1, yref:"paper", line:{color:"#e0616a", width:2, dash:"dash"} }],
+    annotations:[{ x:cutoff, y:1, yref:"paper", yanchor:"bottom", text:`VaR ${Math.round(confidence*100)}%`, showarrow:false, font:{size:9.5, color:"#e0616a"} }],
+  });
+  Plotly.react("chartMCHist", [trace], layout, PLOTLY_CONFIG);
+}
+
+function renderRolling(model, window){
+  const dates = DATA.dates.slice(1).map(fmtDate);
+  const vol = rollingVolatility(model.pfDailyReturns, window);
+  const shp = rollingSharpe(model.pfDailyReturns, window, model.rf);
+
+  const volTrace = { type:"scatter", mode:"lines", x:dates, y: vol.map(v=>v===null?null:v*100),
+    line:{color:"#3ecfd9", width:1.6}, fill:"tozeroy", fillcolor:"rgba(62,207,217,0.08)",
+    hovertemplate:"%{x}<br>%{y:.1f}%<extra></extra>" };
+  Plotly.react("chartRollVol", [volTrace], baseLayout({
+    margin:{l:50,r:20,t:10,b:34},
+    yaxis:{ title:{text:"Ann. vol (%)", font:{size:10}} },
+    xaxis:{ type:"date" },
+  }), PLOTLY_CONFIG);
+
+  const posMask = shp.map(v=> v===null? null : (v>=0? v : null));
+  const negMask = shp.map(v=> v===null? null : (v<0? v : null));
+  Plotly.react("chartRollSharpe", [
+    { type:"scatter", mode:"lines", x:dates, y:shp, line:{color:"#5a6274", width:1}, hoverinfo:"skip", showlegend:false },
+    { type:"scatter", mode:"lines", x:dates, y:posMask, line:{color:"#5fbf8f", width:2}, connectgaps:false, name:"Positive", hovertemplate:"%{x}<br>%{y:.2f}<extra></extra>" },
+    { type:"scatter", mode:"lines", x:dates, y:negMask, line:{color:"#e0616a", width:2}, connectgaps:false, name:"Negative", hovertemplate:"%{x}<br>%{y:.2f}<extra></extra>" },
+    { type:"scatter", mode:"lines", x:[dates[0],dates[dates.length-1]], y:[0,0], line:{color:"#232a38", width:1}, hoverinfo:"skip", showlegend:false },
+  ], baseLayout({
+    margin:{l:45,r:20,t:10,b:34},
+    yaxis:{ title:{text:"Rolling Sharpe", font:{size:10}} },
+    xaxis:{ type:"date" },
+  }), PLOTLY_CONFIG);
+}
+
+function renderVolClustering(model){
+  const dates = DATA.dates.slice(1).map(fmtDate);
+  const sq = model.pfDailyReturns.map(r=>r*r*10000);
+  Plotly.react("chartVolClusterSeries", [
+    { type:"bar", x:dates, y:sq, marker:{color:"#e8a13d", opacity:0.75}, hovertemplate:"%{x}<br>%{y:.1f}<extra></extra>" }
+  ], baseLayout({
+    margin:{l:45,r:15,t:10,b:34},
+    yaxis:{ title:{text:"Squared return (bps²)", font:{size:9.5}} },
+    xaxis:{ type:"date" },
+  }), PLOTLY_CONFIG);
+
+  const maxLag = 20;
+  const acf = autocorrelation(model.pfDailyReturns.map(r=>r*r), maxLag);
+  const n = model.pfDailyReturns.length;
+  const band = 1.96/Math.sqrt(n);
+  Plotly.react("chartACF", [
+    { type:"bar", x: Array.from({length:maxLag},(_,i)=>i+1), y: acf,
+      marker:{ color: acf.map(v=> Math.abs(v)>band? "#e8a13d":"#3ecfd9") },
+      hovertemplate:"Lag %{x}<br>ACF %{y:.3f}<extra></extra>" },
+    { type:"scatter", mode:"lines", x:[0.5,maxLag+0.5], y:[band,band], line:{color:"#5a6274", width:1, dash:"dash"}, hoverinfo:"skip", showlegend:false },
+    { type:"scatter", mode:"lines", x:[0.5,maxLag+0.5], y:[-band,-band], line:{color:"#5a6274", width:1, dash:"dash"}, hoverinfo:"skip", showlegend:false },
+  ], baseLayout({
+    margin:{l:40,r:15,t:10,b:34},
+    xaxis:{ title:{text:"Lag (days)", font:{size:9.5}}, dtick:2 },
+    yaxis:{ title:{text:"ACF of r²", font:{size:9.5}} },
+  }), PLOTLY_CONFIG);
+}
+
+function renderDrawdown(model){
+  const dates = DATA.dates.map(fmtDate);
+  const dd = drawdownSeries(model.pfDailyReturns);
+  Plotly.react("chartCumulative", [
+    { type:"scatter", mode:"lines", x:dates, y: dd.wealth.map(v=>(v-1)*100), line:{color:"#3ecfd9", width:1.8},
+      hovertemplate:"%{x}<br>%{y:.1f}%<extra></extra>" }
+  ], baseLayout({
+    margin:{l:50,r:20,t:5,b:5},
+    yaxis:{ title:{text:"Cum. return (%)", font:{size:9.5}} },
+    xaxis:{ type:"date", showticklabels:false },
+  }), PLOTLY_CONFIG);
+
+  Plotly.react("chartDrawdown", [
+    { type:"scatter", mode:"lines", x:dates, y: dd.dd.map(v=>v*100), line:{color:"#e0616a", width:1.4},
+      fill:"tozeroy", fillcolor:"rgba(224,97,106,0.18)",
+      hovertemplate:"%{x}<br>%{y:.1f}%<extra></extra>" }
+  ], baseLayout({
+    margin:{l:50,r:20,t:5,b:34},
+    yaxis:{ title:{text:"Drawdown (%)", font:{size:9.5}} },
+    xaxis:{ type:"date" },
+  }), PLOTLY_CONFIG);
+
+  document.getElementById("ddBadge").textContent = "Max DD " + fmtPct(dd.maxDD,1);
+}
+
+/* =========================================================================
+   10. UI WIRING
+   ========================================================================= */
+
+function buildSliders(){
+  const container = document.getElementById("assetSliders");
+  container.innerHTML = "";
+  DATA.assetNames.forEach((name,i)=>{
+    const row = document.createElement("div");
+    row.className = "asset-row";
+    row.innerHTML = `
+      <div class="lbl">
+        <span class="name"><span class="dot" style="background:${DATA.colors[i]}"></span>${name}</span>
+        <span class="val" id="wval-${i}">0%</span>
+      </div>
+      <input type="range" min="0" max="100" step="1" value="${WEIGHTS[i]}" id="wslider-${i}" />
+    `;
+    container.appendChild(row);
+  });
+  DATA.assetNames.forEach((_,i)=>{
+    document.getElementById(`wslider-${i}`).addEventListener("input", (e)=>{
+      WEIGHTS[i] = parseFloat(e.target.value);
+      updateWeightLabels();
+      render();
+    });
+  });
+  updateWeightLabels();
+}
+
+function updateWeightLabels(){
+  const sum = WEIGHTS.reduce((a,b)=>a+b,0) || 1;
+  DATA.assetNames.forEach((_,i)=>{
+    const norm = WEIGHTS[i]/sum*100;
+    const elVal = document.getElementById(`wval-${i}`);
+    if(elVal) elVal.textContent = norm.toFixed(1)+"%";
+  });
+  document.getElementById("normSum").textContent = "100.0%";
+}
+
+function setWeights(newWeights){
+  WEIGHTS = newWeights.map(x=> Math.max(0, Math.min(100, x*100)));
+  DATA.assetNames.forEach((_,i)=>{
+    const s = document.getElementById(`wslider-${i}`);
+    if(s) s.value = WEIGHTS[i];
+  });
+  updateWeightLabels();
+  render();
+}
+
+function wireControls(){
+  document.getElementById("btnEqual").addEventListener("click", ()=>{
+    const n = DATA.assetNames.length;
+    setWeights(new Array(n).fill(1/n));
+  });
+  document.getElementById("btnMinVar").addEventListener("click", ()=>{
+    if(window.__minVolPt) setWeights(window.__minVolPt.w);
+  });
+  document.getElementById("btnMaxSharpe").addEventListener("click", ()=>{
+    if(window.__maxSharpePt) setWeights(window.__maxSharpePt.w);
+  });
+
+  ["confLevel","varHorizon","rfRate","pfValue","mcSims","mcHorizon","rollWindow"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", render);
+  });
+  document.getElementById("rfRate").addEventListener("input", render);
+  document.getElementById("rollWindow").addEventListener("input", render);
+  document.getElementById("pfValue").addEventListener("input", render);
+
+  document.getElementById("btnRegenerate").addEventListener("click", ()=>{
+    DATA = generateSyntheticPrices(756, Math.floor(Math.random()*100000));
+    document.getElementById("dataNote").textContent = "Resampled synthetic 3-year daily price history (new random seed).";
+    buildSliders();
+    render();
+  });
+  document.getElementById("btnReset").addEventListener("click", ()=>{
+    DATA = generateSyntheticPrices(756, 42);
+    document.getElementById("dataNote").textContent = "Using simulated 3-year daily price history for a 5-asset multi-asset universe (correlated GBM, fixed seed). Upload your own CSV of adjusted close prices for live analysis.";
+    WEIGHTS = ASSET_DEFS.map(()=>100/ASSET_DEFS.length);
+    buildSliders();
+    render();
+  });
+
+  document.getElementById("csvUpload").addEventListener("change", (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (evt)=>{
+      try{
+        const parsed = parseCSV(evt.target.result);
+        if(parsed.assetNames.length<2 || parsed.prices[0].length<30){
+          alert("CSV needs at least 2 assets and 30+ rows of price history.");
+          return;
+        }
+        DATA = parsed;
+        WEIGHTS = parsed.assetNames.map(()=>100/parsed.assetNames.length);
+        document.getElementById("dataNote").textContent = `Loaded ${file.name} — ${parsed.assetNames.length} assets, ${parsed.prices[0].length} observations.`;
+        buildSliders();
+        render();
+      }catch(err){
+        alert("Could not parse CSV. Expected format: Date, Asset1, Asset2, ... with price levels.");
+      }
+    };
+    reader.readAsText(file);
+  });
+
+  // API fetch button
+  document.getElementById("btnFetchAPI").addEventListener("click", async () => {
+    if (CURRENT_PORTFOLIO_ID) {
+      await fetchAndRenderFromAPI();
+    } else {
+      alert("Select a portfolio first");
+    }
+  });
+
+  // Re-fetch from API when risk params change (if portfolio is selected)
+  ["confLevel","varHorizon","rollWindow"].forEach(id=>{
+    document.getElementById(id).addEventListener("change", () => {
+      if (CURRENT_PORTFOLIO_ID && AUTH_TOKEN) {
+        fetchAndRenderFromAPI();
+      }
+    });
+  });
+}
+
+/* =========================================================================
+   11. INIT
+   ========================================================================= */
+
+buildSliders();
+wireControls();
+render();
+window.addEventListener("resize", ()=>{
+  ["chartAllocation","chartCorr","chartFrontier","chartMC","chartVaR","chartMCHist",
+   "chartRollVol","chartRollSharpe","chartVolClusterSeries","chartACF","chartCumulative","chartDrawdown","chartRiskContrib"]
+   .forEach(id=>{ const el=document.getElementById(id); if(el) Plotly.Plots.resize(el); });
+});
+
+// Check API on load and restore session
+(async function initAPI() {
+  const connected = await checkAPIConnection();
+  if (connected && AUTH_TOKEN) {
+    await loadCurrentUser();
+    if (CURRENT_USER) {
+      onAuthSuccess();
+    }
+  }
+})();
+
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+sqlalchemy[asyncio]>=2.0
+aiosqlite
+alembic
+pydantic>=2
+pydantic-settings
+pandas
+numpy
+scipy
+yfinance
+openpyxl
+python-multipart
+python-jose[cryptography]
+passlib[bcrypt]
+pytest
+httpx
