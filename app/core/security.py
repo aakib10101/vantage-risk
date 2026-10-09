@@ -7,7 +7,13 @@ from passlib.context import CryptContext
 
 from app.config import settings
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+# Set bcrypt rounds to a lower number (e.g. 4) for faster hashing on free tier instances.
+# Default passlib rounds can take 1-3 seconds on 0.1 CPU cores.
+pwd_context = CryptContext(
+    schemes=["bcrypt"],
+    deprecated="auto",
+    bcrypt__rounds=4
+)
 
 
 def hash_password(password: str) -> str:
